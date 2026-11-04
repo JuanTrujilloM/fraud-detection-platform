@@ -1,0 +1,36 @@
+[project]
+name = "coopandina-oltp"
+version = "0.1.0"
+description = "Plataforma OLTP de CoopAndina: autorización de compras y log de eventos de negocio"
+requires-python = ">=3.12"
+dependencies = [
+    "django~=5.2",
+    "djangorestframework>=3.18.3",
+    "djangorestframework-simplejwt>=5.5.1",
+    "gunicorn>=26.2.0",
+    "psycopg[binary]>=3.3.8",
+    "user-agents>=2.2.0",
+    "whitenoise>=6.12.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.17.3",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["**/migrations"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "DJ", "S", "RUF"]
+ignore = [
+    "RUF012", # Atributos de clase de Django (Meta, permission_classes, etc.)
+]
