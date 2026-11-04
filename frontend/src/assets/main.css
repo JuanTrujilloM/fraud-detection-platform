@@ -1,0 +1,278 @@
+:root {
+  --fondo: #f5f6f3;
+  --superficie: #ffffff;
+  --borde: #dcdfd8;
+  --texto: #1c2420;
+  --texto-suave: #5c665f;
+  --marca: #14523c;
+  --marca-oscura: #0d3a2a;
+  --marca-suave: #e4efe9;
+  --ok: #17693f;
+  --ok-suave: #e1f2e8;
+  --mal: #a82a22;
+  --mal-suave: #fae8e6;
+  --aviso: #8a5a00;
+  --aviso-suave: #fbf0d9;
+  --neutro-suave: #eceee9;
+  --radio: 8px;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--fondo);
+  color: var(--texto);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 1.5rem;
+  line-height: 1.25;
+}
+
+h2 {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+}
+
+a {
+  color: var(--marca);
+}
+
+.subtitulo {
+  margin: 0 0 24px;
+  color: var(--texto-suave);
+}
+
+.panel {
+  padding: 20px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+}
+
+.pila {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+
+.dos-columnas {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+}
+
+@media (max-width: 760px) {
+  .dos-columnas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Formularios */
+.campo {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.campo label,
+.campo .etiqueta {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.campo small {
+  color: var(--texto-suave);
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 11px;
+  border: 1px solid #b9bfb5;
+  border-radius: 6px;
+  background: var(--superficie);
+  color: inherit;
+  font: inherit;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--marca);
+  outline-offset: 1px;
+}
+
+.fila-campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+button {
+  padding: 9px 16px;
+  border: 1px solid var(--marca);
+  border-radius: 6px;
+  background: var(--marca);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--marca-oscura);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+button.secundario {
+  border-color: #b9bfb5;
+  background: var(--superficie);
+  color: var(--texto);
+}
+
+button.secundario:hover:not(:disabled) {
+  background: var(--neutro-suave);
+}
+
+button.peligro {
+  border-color: var(--mal);
+  background: var(--mal);
+}
+
+button.peligro:hover:not(:disabled) {
+  background: #861f19;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Tablas */
+.tabla-contenedor {
+  overflow-x: auto;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--superficie);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--borde);
+  text-align: left;
+  white-space: nowrap;
+}
+
+th {
+  background: #fafbf8;
+  color: var(--texto-suave);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+tr:last-child td {
+  border-bottom: 0;
+}
+
+td.ancho {
+  min-width: 240px;
+  white-space: normal;
+}
+
+.numero {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Insignias y avisos */
+.insignia {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--neutro-suave);
+  color: var(--texto-suave);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.insignia.ok {
+  background: var(--ok-suave);
+  color: var(--ok);
+}
+
+.insignia.mal {
+  background: var(--mal-suave);
+  color: var(--mal);
+}
+
+.insignia.aviso {
+  background: var(--aviso-suave);
+  color: var(--aviso);
+}
+
+.error {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--mal-suave);
+  color: var(--mal);
+}
+
+.exito {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--ok-suave);
+  color: var(--ok);
+}
+
+.vacio {
+  padding: 32px 20px;
+  color: var(--texto-suave);
+  text-align: center;
+}
+
+.datos {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 16px;
+  margin: 0;
+}
+
+.datos dt {
+  color: var(--texto-suave);
+}
+
+.datos dd {
+  margin: 0;
+}
