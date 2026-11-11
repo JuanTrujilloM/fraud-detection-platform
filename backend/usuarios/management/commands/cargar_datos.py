@@ -1,25 +1,36 @@
 """Carga asociados, tarjetas y comercios desde CSV. Es idempotente y nunca sobrescribe lo existente,
 para no reiniciar los cupos que ya se hayan consumido.
 
-El directorio debe tener asociados.csv, comercios.csv y tarjetas.csv (ver data/muestra). Puede tener
-además usuarios_internos.csv (analistas y administradores).
+El directorio debe tener asociados.csv, comercios.csv y tarjetas.csv (ver docs/carga-de-datos.md).
+Puede tener
+además usuarios_internos.csv (analistas y administradores), autorizaciones.csv y reclamos.csv
+(el histórico, con las columnas de cada tabla) y meta.json.
+
+Si los CSV traen una columna `id`, se conserva: así el histórico del data lake y el OLTP comparten
+llaves. meta.json puede indicar `ultimo_id_autorizacion` para que las autorizaciones nuevas no
+choquen con las del histórico.
 """
 
 import csv
+import json
 import os
 from collections.abc import Iterator
 from pathlib import Path
 
 from django.contrib.auth.hashers import make_password
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
+from django.core.management.color import no_style
+from django.db import connection, transaction
 
+from autorizaciones.models import Autorizacion
+from portal.models import Reclamo
 from tarjetas.cvv import hashear_cvv
 from tarjetas.models import Tarjeta
 from usuarios.models import Asociado, Comercio, Usuario
 
 TAMANO_LOTE = 1000
-DIRECTORIO_MUESTRA = Path(__file__).resolve().parents[3] / 'data' / 'muestra'
+# PostgreSQL admite como máximo 65.535 parámetros por consulta.
+TAMANO_CONSULTA = 10_000
 
 
 def _leer(ruta: Path) -> Iterator[dict[str, str]]:
@@ -33,11 +44,33 @@ def _es_verdadero(valor: str) -> bool:
     return valor.strip().lower() in {'true', '1', 'si', 'sí', 'yes'}
 
 
+def _verificar_ids(modelo, campo: str, filas: list[dict[str, str]]) -> None:
+    """Con ids explícitos, ignore_conflicts también ignoraría un id ocupado por otro registro, por
+    ejemplo de una carga anterior. Eso desalinearía el OLTP con el data lake, así que se aborta."""
+    esperados = {int(f['id']): f[campo] for f in filas if f.get('id')}
+    ids = list(esperados)
+    for i in range(0, len(ids), TAMANO_CONSULTA):
+        lote = ids[i : i + TAMANO_CONSULTA]
+        for id_, valor in modelo.objects.filter(id__in=lote).values_list('id', campo):
+            if valor != esperados[id_]:
+                raise CommandError(
+                    f'El id {id_} de {modelo._meta.db_table} ya existe con otros datos. '
+                    'Carga el histórico en una base de datos vacía.'
+                )
+
+
+def _id(fila: dict[str, str]) -> dict[str, int]:
+    """Conserva el id del archivo si viene; si no, lo asigna la base de datos."""
+    return {'id': int(fila['id'])} if fila.get('id') else {}
+
+
 class Command(BaseCommand):
     help = 'Carga asociados, tarjetas y comercios desde un directorio con CSV.'
 
     def add_arguments(self, parser):
-        parser.add_argument('--dir', type=Path, default=DIRECTORIO_MUESTRA)
+        parser.add_argument(
+            '--dir', type=Path, required=True, help='Carpeta con los CSV, p. ej. data/historico.'
+        )
         parser.add_argument(
             '--password',
             default=os.environ.get('CARGA_PASSWORD'),
@@ -52,12 +85,17 @@ class Command(BaseCommand):
         asociados = self._cargar_asociados(dir / 'asociados.csv', hash_password)
         comercios = self._cargar_comercios(dir / 'comercios.csv', hash_password)
         tarjetas = self._cargar_tarjetas(dir / 'tarjetas.csv')
+        # Las autorizaciones no tocan los cupos: el histórico ya está reflejado en cada tarjeta.
+        autorizaciones = self._copiar(Autorizacion, dir / 'autorizaciones.csv')
+        reclamos = self._copiar(Reclamo, dir / 'reclamos.csv')
         internos = self._cargar_internos(dir / 'usuarios_internos.csv', hash_password)
+        self._ajustar_secuencias(dir / 'meta.json')
 
         self.stdout.write(
             self.style.SUCCESS(
                 f'Filas leídas: {asociados} asociados, {comercios} comercios, '
-                f'{tarjetas} tarjetas, {internos} usuarios internos.'
+                f'{tarjetas} tarjetas, {autorizaciones} autorizaciones, {reclamos} reclamos, '
+                f'{internos} usuarios internos.'
             )
         )
 
@@ -70,11 +108,12 @@ class Command(BaseCommand):
             batch_size=TAMANO_LOTE,
             ignore_conflicts=True,
         )
-        return dict(
-            Usuario.objects.filter(username__in=[u for u, _ in usernames_emails]).values_list(
-                'username', 'id'
-            )
-        )
+        usernames = [u for u, _ in usernames_emails]
+        ids = {}
+        for i in range(0, len(usernames), TAMANO_CONSULTA):
+            lote = usernames[i : i + TAMANO_CONSULTA]
+            ids.update(Usuario.objects.filter(username__in=lote).values_list('username', 'id'))
+        return ids
 
     def _cargar_asociados(self, ruta: Path, hash_password: str) -> int:
         filas = list(_leer(ruta))
@@ -86,6 +125,7 @@ class Command(BaseCommand):
         Asociado.objects.bulk_create(
             [
                 Asociado(
+                    **_id(f),
                     usuario_id=ids[f'asociado_{f["numero_documento"]}'],
                     tipo_documento=f['tipo_documento'],
                     numero_documento=f['numero_documento'],
@@ -104,6 +144,7 @@ class Command(BaseCommand):
             batch_size=TAMANO_LOTE,
             ignore_conflicts=True,
         )
+        _verificar_ids(Asociado, 'numero_documento', filas)
         return len(filas)
 
     def _cargar_comercios(self, ruta: Path, hash_password: str) -> int:
@@ -120,6 +161,7 @@ class Command(BaseCommand):
         Comercio.objects.bulk_create(
             [
                 Comercio(
+                    **_id(f),
                     usuario_id=ids[f'comercio_{f["nit"]}'],
                     nombre=f['nombre'],
                     nit=f['nit'],
@@ -132,6 +174,7 @@ class Command(BaseCommand):
             batch_size=TAMANO_LOTE,
             ignore_conflicts=True,
         )
+        _verificar_ids(Comercio, 'nit', filas)
         return len(filas)
 
     def _cargar_tarjetas(self, ruta: Path) -> int:
@@ -145,6 +188,7 @@ class Command(BaseCommand):
                 )
             tarjetas.append(
                 Tarjeta(
+                    **_id(f),
                     asociado_id=asociados[f['numero_documento']],
                     numero=f['numero'],
                     ultimos_4=f['numero'][-4:],  # bulk_create no llama a save()
@@ -159,7 +203,43 @@ class Command(BaseCommand):
                 )
             )
         Tarjeta.objects.bulk_create(tarjetas, batch_size=TAMANO_LOTE, ignore_conflicts=True)
+        _verificar_ids(Tarjeta, 'numero', filas)
         return len(filas)
+
+    def _copiar(self, modelo, ruta: Path) -> int:
+        """Carga una tabla del histórico con COPY: son millones de filas y bulk_create tardaría
+        mucho. Pasa por una tabla temporal para que repetir la carga no duplique nada."""
+        if not ruta.exists():
+            return 0
+        tabla = modelo._meta.db_table
+        with ruta.open(encoding='utf-8', newline='') as archivo:
+            encabezado = next(csv.reader(archivo))
+        columnas_tabla = {campo.column for campo in modelo._meta.concrete_fields}
+        desconocidas = set(encabezado) - columnas_tabla
+        if desconocidas or 'id' not in encabezado:
+            raise CommandError(
+                f'{ruta.name} debe tener las columnas de la tabla {tabla}, con id. '
+                f'Sobran: {sorted(desconocidas)}'
+            )
+        columnas = ', '.join(f'"{c}"' for c in encabezado)
+        temporal = f'carga_{tabla}'
+        with connection.cursor() as cursor:
+            cursor.execute(f'CREATE TEMP TABLE {temporal} (LIKE {tabla}) ON COMMIT DROP')
+            # En formato CSV, una celda vacía sin comillas es NULL.
+            with (
+                ruta.open('rb') as archivo,
+                cursor.copy(
+                    f'COPY {temporal} ({columnas}) FROM STDIN WITH (FORMAT csv, HEADER true)'
+                ) as copia,
+            ):
+                while bloque := archivo.read(1 << 20):
+                    copia.write(bloque)
+            cursor.execute(
+                f'INSERT INTO {tabla} ({columnas}) SELECT {columnas} '  # noqa: S608
+                f'FROM {temporal} ON CONFLICT DO NOTHING'
+            )
+            cursor.execute(f'SELECT count(*) FROM {temporal}')  # noqa: S608
+            return cursor.fetchone()[0]
 
     def _cargar_internos(self, ruta: Path, hash_password: str) -> int:
         if not ruta.exists():
@@ -172,3 +252,22 @@ class Command(BaseCommand):
                     username=f['username'], email=f['email'], rol=f['rol'], password=hash_password
                 ).save()
         return len(filas)
+
+    def _ajustar_secuencias(self, ruta_meta: Path) -> None:
+        """Con ids explícitos, las secuencias quedan atrás y el siguiente INSERT chocaría."""
+        with connection.cursor() as cursor:
+            for sql in connection.ops.sequence_reset_sql(
+                no_style(), [Asociado, Comercio, Tarjeta, Reclamo]
+            ):
+                cursor.execute(sql)
+            if not ruta_meta.exists():
+                return
+            ultimo = int(
+                json.loads(ruta_meta.read_text(encoding='utf-8'))['ultimo_id_autorizacion']
+            )
+            tabla = Autorizacion._meta.db_table
+            cursor.execute(
+                f"SELECT setval(pg_get_serial_sequence('{tabla}', 'id'), "  # noqa: S608
+                f'GREATEST(%s, (SELECT COALESCE(MAX(id), 1) FROM {tabla})))',
+                [ultimo],
+            )
