@@ -2,3 +2,7 @@
 __pycache__
 .ruff_cache
 logs
+staticfiles
+# El histórico se monta como volumen; no va dentro de la imagen.
+data/historico
+data/historico.zip

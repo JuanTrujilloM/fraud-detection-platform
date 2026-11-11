@@ -4,6 +4,8 @@ services:
     env_file: .env
     volumes:
       - ./logs:/var/log/coopandina
+      # Para cargar el histórico con cargar_datos --dir data/historico.
+      - ./backend/data/historico:/app/data/historico:ro
     expose: ["8000"]
     restart: unless-stopped
   web:
