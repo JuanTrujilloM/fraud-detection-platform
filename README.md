@@ -53,6 +53,38 @@ El modelo de ML todavía devuelve un valor fijo bajo, así que no aparecerán al
 docker compose up -d --force-recreate backend
 ```
 
+## Despliegue en AWS
+
+En la EC2, con `docker-compose.prod.yml`: Nginx sirve el build de Vue en el puerto 80 y reenvía `/api/`, `/admin/` y `/static/` a Gunicorn. El health check del ALB es `/healthz`.
+
+En el `.env` de la EC2, además de los secretos propios y los datos de RDS:
+
+| Variable | Valor |
+| --- | --- |
+| `DJANGO_DEBUG` | `false` |
+| `DJANGO_ALLOWED_HOSTS` | El DNS del ALB |
+| `NUM_PROXIES` | `2`, por el ALB y Nginx |
+| `POSTGRES_HOST` | El endpoint de RDS |
+
+En orden:
+
+1. Descomprime `historico.zip` en `backend/data/historico/`.
+2. Levanta la aplicación, que aplica las migraciones al arrancar:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml up -d --build
+   ```
+
+3. Carga el histórico en RDS, con la base vacía:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml exec backend python manage.py cargar_datos --dir data/historico
+   ```
+
+4. Solo después, corre la primera ingesta por batch. La de autorizaciones usa `fecha_hora` como marca de agua: si corre antes de cargar el histórico, nunca tomará esas compras.
+
+Los contracargos del histórico (`backend/data/historico/contracargos/`) no van a RDS: se suben directo a la zona raw del data lake.
+
 ## Cómo está organizado
 
 ```
