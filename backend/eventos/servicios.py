@@ -21,6 +21,7 @@ SCHEMA_VERSION = 1
 
 _NUMERO_DE_TARJETA = re.compile(r'(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)')
 
+
 def _enmascarar_numeros(texto: str) -> str:
     """Deja solo los últimos 4 dígitos de toda secuencia con el largo de un número de tarjeta."""
 

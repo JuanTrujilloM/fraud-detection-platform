@@ -5,4 +5,4 @@ class EventosConfig(AppConfig):
     name = 'eventos'
 
     def ready(self):
-        from eventos import checks
+        from eventos import checks  # noqa: F401 - registra el chequeo del log de eventos
