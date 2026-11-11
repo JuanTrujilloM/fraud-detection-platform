@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Genera tráfico llamando a POST /api/autorizaciones/ como lo haría una terminal.
 
-Lee las tarjetas y los comercios de los CSV de muestra. Solo usa la biblioteca estándar.
+Lee las tarjetas y los comercios del histórico cargado en el OLTP (backend/data/historico). Solo
+usa la biblioteca estándar.
 
     python scripts/demo_trafico.py --password <CARGA_PASSWORD> --compras 200
     python scripts/demo_trafico.py --password <CARGA_PASSWORD> --prueba-tarjetas
@@ -19,7 +20,11 @@ from datetime import date
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[1]
-DATOS_MUESTRA = RAIZ / 'backend' / 'data' / 'muestra'
+DATOS = RAIZ / 'backend' / 'data' / 'historico'
+# Con decenas de miles de comercios, la demo inicia sesión solo en una muestra de ellos.
+COMERCIOS_DEMO = 20
+# El ataque típico del enunciado: compras pequeñas de 40 tarjetas distintas en un comercio.
+TARJETAS_PRUEBA = 40
 USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
     'Chrome/124.0.0.0 Safari/537.36',
@@ -42,7 +47,10 @@ def post(url: str, cuerpo: dict, token: str | None = None) -> dict:
 
 
 def leer_csv(nombre: str) -> list[dict]:
-    with (DATOS_MUESTRA / nombre).open(encoding='utf-8', newline='') as archivo:
+    ruta = DATOS / nombre
+    if not ruta.exists():
+        raise SystemExit(f'No existe {ruta}: descomprime historico.zip en backend/data/historico.')
+    with ruta.open(encoding='utf-8', newline='') as archivo:
         return list(csv.DictReader(archivo))
 
 
@@ -95,7 +103,9 @@ def entrar(url: str, comercio: dict, password: str) -> str:
 
 
 def trafico_normal(url: str, password: str, cantidad: int, pausa: float) -> Counter:
-    tarjetas, comercios = leer_csv('tarjetas.csv'), leer_csv('comercios.csv')
+    tarjetas = leer_csv('tarjetas.csv')
+    todos = leer_csv('comercios.csv')
+    comercios = random.sample(todos, k=min(COMERCIOS_DEMO, len(todos)))
     tokens = {c['nit']: entrar(url, c, password) for c in comercios}
     conteo: Counter = Counter()
     for _ in range(cantidad):
@@ -114,7 +124,7 @@ def prueba_de_tarjetas(url: str, password: str, pausa: float) -> Counter:
     comercio = next(c for c in comercios if c['vende_en_linea'].lower() == 'true')
     token = entrar(url, comercio, password)
     conteo: Counter = Counter()
-    for tarjeta in tarjetas:
+    for tarjeta in random.sample(tarjetas, k=min(TARJETAS_PRUEBA, len(tarjetas))):
         compra = compra_base(tarjeta, random.randrange(1_000, 5_000, 100), en_linea=True)
         compra |= {'tarjeta_pegada': True, 'segundos_formulario': round(random.uniform(1, 3), 1)}
         decision = post(f'{url}/api/autorizaciones/', compra, token)

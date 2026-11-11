@@ -21,23 +21,23 @@ cp .env.example .env
 docker compose up --build
 ```
 
-En otra terminal, carga los datos de muestra (usa la `CARGA_PASSWORD` de tu `.env` como contraseña de todos los usuarios):
+Los datos son el histórico de CoopAndina, construido a partir de un dataset de Kaggle. No está en el repositorio: pide al equipo el archivo `historico.zip` y descomprímelo en `backend/data/historico/`. Después, en otra terminal, cárgalo (usa la `CARGA_PASSWORD` de tu `.env` como contraseña de todos los usuarios):
 
 ```bash
-docker compose exec backend python manage.py cargar_datos
+docker compose exec backend python manage.py cargar_datos --dir data/historico
 ```
 
 Entra a <http://localhost:5173>:
 
 | Rol | Usuario | Módulo |
 | --- | --- | --- |
-| Comercio con tienda en línea | `comercio_900100006` | Terminal de pago |
-| Comercio solo presencial | `comercio_900100001` | Terminal de pago |
-| Asociado | `asociado_1000000001` | Portal |
+| Comercio con tienda en línea | `comercio_800026831` (Tecnología 26831) | Terminal de pago |
+| Comercio solo presencial | `comercio_800000037` (Supermercado 37) | Terminal de pago |
+| Asociado | `asociado_7000000825` | Portal |
 | Analista | `analista_demo` | Consola de fraude |
 | Administrador | `admin_demo` | [Admin de Django](http://localhost:5173/admin/) |
 
-Las tarjetas de prueba están en [`backend/data/muestra/tarjetas.csv`](backend/data/muestra/tarjetas.csv), con su CVV en claro porque son sintéticas.
+Cualquier comercio o asociado del histórico sirve: los usuarios son `comercio_<nit>` y `asociado_<documento>`. Las tarjetas, con su CVV en claro porque son sintéticas, quedan en `backend/data/historico/tarjetas.csv`. Muchas ya están vencidas, como en el dataset original.
 
 Para generar tráfico:
 
@@ -68,7 +68,7 @@ frontend/src/
   app/             Arranque, router y guardias por rol
   features/        auth, comercio, portal y consola: vistas, servicios y rutas de cada módulo
   shared/          Componentes, cliente HTTP y utilidades
-scripts/           Generador de la muestra y tráfico de demo
+scripts/           Tráfico de demo
 docs/              Formato de carga de datos
 ```
 

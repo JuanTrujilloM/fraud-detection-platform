@@ -15,6 +15,10 @@ backend/logs/
 node_modules/
 dist/
 
+# Datos generados a partir del dataset histórico
+backend/data/historico/
+backend/data/historico.zip
+
 # Log de eventos en local
 logs/*
 !logs/.gitkeep
