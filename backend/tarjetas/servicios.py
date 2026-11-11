@@ -33,7 +33,7 @@ def _aplicar(tipo, objetivo, estado_bloqueado, *, origen, motivo, usuario) -> Bl
         usuario=usuario,
     )
     objetivo.estado = estado_bloqueado
-    objetivo.save(update_fields=['estado'])
+    objetivo.save(update_fields=['estado', 'fecha_actualizacion'])
     registrar_al_confirmar(
         'BLOQUEO_APLICADO',
         MODULO,
@@ -93,9 +93,11 @@ def _levantar(bloqueo: Bloqueo, usuario) -> Bloqueo:
         # Una tarjeta cancelada mientras estaba bloqueada sigue cancelada.
         if tarjeta.estado == Tarjeta.Estado.BLOQUEADA:
             tarjeta.estado = Tarjeta.Estado.ACTIVA
-            tarjeta.save(update_fields=['estado'])
+            tarjeta.save(update_fields=['estado', 'fecha_actualizacion'])
     else:
-        Comercio.objects.filter(pk=bloqueo.comercio_id).update(estado=Comercio.Estado.ACTIVO)
+        Comercio.objects.filter(pk=bloqueo.comercio_id).update(
+            estado=Comercio.Estado.ACTIVO, fecha_actualizacion=timezone.now()
+        )
 
     registrar_al_confirmar(
         'BLOQUEO_LEVANTADO',

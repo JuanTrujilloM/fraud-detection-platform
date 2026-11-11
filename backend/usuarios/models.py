@@ -59,6 +59,8 @@ class Asociado(models.Model):
     puntaje_crediticio = models.PositiveSmallIntegerField()
     fecha_afiliacion = models.DateField()
     estado = models.CharField(max_length=8, choices=Estado.choices, default=Estado.ACTIVO)
+    # Columna de marca de agua: la ingesta por batch extrae lo que cambió desde la última corrida.
+    fecha_actualizacion = models.DateTimeField(auto_now=True, db_index=True)
 
     class Meta:
         db_table = 'asociado'
@@ -100,6 +102,8 @@ class Comercio(models.Model):
         help_text='Acceso rápido. Para bloquear con historial usa la consola del analista.',
     )
 
+    # Columna de marca de agua: la ingesta por batch extrae lo que cambió desde la última corrida.
+    fecha_actualizacion = models.DateTimeField(auto_now=True, db_index=True)
     class Meta:
         db_table = 'comercio'
         ordering = ['nombre']

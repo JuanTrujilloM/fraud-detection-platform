@@ -195,7 +195,7 @@ def autorizar(
 
         if resultado == Resultado.APROBADA:
             tarjeta.cupo_disponible -= solicitud.monto
-            tarjeta.save(update_fields=['cupo_disponible'])
+            tarjeta.save(update_fields=['cupo_disponible', 'fecha_actualizacion'])
 
         datos = _datos_evento(
             solicitud, comercio, contexto, autorizacion, tarjeta, resultado, motivo, consulta

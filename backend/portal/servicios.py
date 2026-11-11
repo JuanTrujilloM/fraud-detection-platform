@@ -17,7 +17,7 @@ def actualizar_perfil(asociado, usuario, cambios: dict) -> None:
         return
     for campo in cambiados:
         setattr(asociado, campo, cambios[campo])
-    asociado.save(update_fields=cambiados)
+    asociado.save(update_fields=[*cambiados, 'fecha_actualizacion'])
     if 'email' in cambiados:
         usuario.email = cambios['email']
         usuario.save(update_fields=['email'])
