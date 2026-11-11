@@ -36,15 +36,34 @@ class TarjetaAdminForm(forms.ModelForm):
             'estado',
         ]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        estado = self.fields['estado']
+        if self.instance.pk and self.instance.estado == Tarjeta.Estado.BLOQUEADA:
+            estado.disabled = True
+            estado.help_text = 'Bloqueada: el bloqueo se levanta desde la consola del analista.'
+        else:
+            estado.choices = [
+                (valor, texto)
+                for valor, texto in estado.choices
+                if valor != Tarjeta.Estado.BLOQUEADA
+            ]
+            estado.help_text = 'Para bloquear una tarjeta usa la consola del analista.'
+
     def clean(self):
         datos = super().clean()
         if not self.instance.pk and not datos.get('cvv'):
             self.add_error('cvv', 'El CVV es requerido al crear la tarjeta.')
+        if self.instance.pk and 'numero' in self.changed_data and not datos.get('cvv'):
+            self.add_error('cvv', 'Cambiaste el número de la tarjeta: ingresa el CVV de nuevo.')
         if datos.get('cupo_disponible') is None:
             if self.instance.pk:
                 self.add_error('cupo_disponible', 'Este campo es requerido.')
             else:
                 datos['cupo_disponible'] = datos.get('cupo_total')
+        total, disponible = datos.get('cupo_total'), datos.get('cupo_disponible')
+        if total is not None and disponible is not None and disponible > total:
+            self.add_error('cupo_disponible', 'El cupo disponible no puede superar al cupo total.')
         return datos
 
     def save(self, commit=True):

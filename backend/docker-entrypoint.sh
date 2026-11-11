@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e
-
+python manage.py check
 python manage.py migrate --noinput
 
 # Un solo worker con hilos: el log de eventos rota con TimedRotatingFileHandler, que no es seguro

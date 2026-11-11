@@ -6,6 +6,7 @@ datos personales que cambian.
 
 import json
 import logging
+import re
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -17,6 +18,17 @@ from django.db import transaction
 logger_eventos = logging.getLogger('eventos')
 
 SCHEMA_VERSION = 1
+
+_NUMERO_DE_TARJETA = re.compile(r'(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)')
+
+def _enmascarar_numeros(texto: str) -> str:
+    """Deja solo los últimos 4 dígitos de toda secuencia con el largo de un número de tarjeta."""
+
+    def ocultar(coincidencia: re.Match) -> str:
+        digitos = re.sub(r'\D', '', coincidencia.group())
+        return '*' * (len(digitos) - 4) + digitos[-4:]
+
+    return _NUMERO_DE_TARJETA.sub(ocultar, texto)
 
 
 def _serializar(valor: Any) -> Any:
@@ -36,7 +48,9 @@ def registrar_evento(event_type: str, modulo: str, usuario, datos: dict[str, Any
         'id_usuario': usuario.id if usuario else None,
         'rol': usuario.rol if usuario else None,
     }
-    evento.update(datos)
+    evento.update(
+        {c: _enmascarar_numeros(v) if isinstance(v, str) else v for c, v in datos.items()}
+    )
     logger_eventos.info(json.dumps(evento, ensure_ascii=False, default=_serializar))
 
 

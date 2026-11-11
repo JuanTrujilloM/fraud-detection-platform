@@ -22,8 +22,9 @@ def obtener_ip(request) -> str | None:
     derecha: con NUM_PROXIES=1, la IP real es la última.
     """
     ip = request.META.get('REMOTE_ADDR')
-    if settings.NUM_PROXIES > 0:
-        saltos = [s.strip() for s in request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')]
+    cabecera = request.META.get('HTTP_X_FORWARDED_FOR', '').strip()
+    if settings.NUM_PROXIES > 0 and cabecera:
+        saltos = [s.strip() for s in cabecera.split(',')]
         if len(saltos) >= settings.NUM_PROXIES:
             ip = saltos[-settings.NUM_PROXIES]
     try:

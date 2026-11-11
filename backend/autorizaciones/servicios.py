@@ -152,7 +152,7 @@ def _datos_evento(
         'segundos_formulario': solicitud.segundos_formulario if en_linea else None,
         'tarjeta_pegada': solicitud.tarjeta_pegada if en_linea else None,
         'tiempo_modelo_ms': consulta.tiempo_ms if consulta else None,
-        'version_modelo': VERSION_MODELO if consulta else None,
+        'version_modelo': VERSION_MODELO if consulta and consulta.disponible else None,
     }
 
 

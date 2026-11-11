@@ -26,3 +26,4 @@ class ComercioAdmin(admin.ModelAdmin):
     list_filter = ('estado', 'categoria', 'vende_en_linea')
     search_fields = ('nombre', 'nit')
     raw_id_fields = ('usuario',)
+    readonly_fields = ('estado',)

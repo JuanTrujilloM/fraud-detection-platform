@@ -45,6 +45,10 @@ class Tarjeta(models.Model):
             models.CheckConstraint(
                 condition=Q(cupo_disponible__gte=0), name='tarjeta_cupo_no_negativo'
             ),
+            models.CheckConstraint(
+                condition=Q(cupo_disponible__lte=F('cupo_total')),
+                name='tarjeta_cupo_disponible_no_excede_total',
+            ),
         ]
 
     def __str__(self):

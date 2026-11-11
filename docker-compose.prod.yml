@@ -1,0 +1,15 @@
+services:
+  backend:
+    build: ./backend
+    env_file: .env
+    volumes:
+      - ./logs:/var/log/coopandina
+    expose: ["8000"]
+    restart: unless-stopped
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    ports: ["80:80"]
+    depends_on: [backend]
+    restart: unless-stopped

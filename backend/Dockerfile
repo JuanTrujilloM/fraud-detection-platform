@@ -18,5 +18,6 @@ RUN useradd --uid 1000 --create-home app \
 
 RUN uv sync --frozen
 COPY . .
+RUN DJANGO_DEBUG=true python manage.py collectstatic --noinput
 USER app
 CMD ["./docker-entrypoint.sh"]

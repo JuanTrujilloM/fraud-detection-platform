@@ -27,9 +27,9 @@ class Usuario(AbstractUser):
 
     def save(self, *args, **kwargs):
         # El rol ADMIN es el que opera el admin de Django, con acceso completo a su CRUD.
-        if self.rol == self.Rol.ADMIN:
-            self.is_staff = True
-            self.is_superuser = True
+        es_admin = self.rol == self.Rol.ADMIN
+        self.is_staff = es_admin
+        self.is_superuser = es_admin
         super().save(*args, **kwargs)
 
 
