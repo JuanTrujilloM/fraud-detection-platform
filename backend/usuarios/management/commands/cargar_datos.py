@@ -222,9 +222,23 @@ class Command(BaseCommand):
                 f'Sobran: {sorted(desconocidas)}'
             )
         columnas = ', '.join(f'"{c}"' for c in encabezado)
+        # Las fechas automáticas que no trae el archivo, como fecha_actualizacion, toman la hora
+        # de la carga, igual que si Django guardara el registro.
+        automaticas = [
+            campo.column
+            for campo in modelo._meta.concrete_fields
+            if getattr(campo, 'auto_now', False) or getattr(campo, 'auto_now_add', False)
+            if campo.column not in encabezado
+        ]
+        destino = ', '.join([columnas, *(f'"{c}"' for c in automaticas)])
+        origen = ', '.join([columnas, *('now()' for _ in automaticas)])
         temporal = f'carga_{tabla}'
         with connection.cursor() as cursor:
-            cursor.execute(f'CREATE TEMP TABLE {temporal} (LIKE {tabla}) ON COMMIT DROP')
+            # Solo las columnas del archivo: las demás se completan al insertar.
+            cursor.execute(
+                f'CREATE TEMP TABLE {temporal} ON COMMIT DROP AS '  # noqa: S608
+                f'SELECT {columnas} FROM {tabla} WITH NO DATA'
+            )
             # En formato CSV, una celda vacía sin comillas es NULL.
             with (
                 ruta.open('rb') as archivo,
@@ -235,7 +249,7 @@ class Command(BaseCommand):
                 while bloque := archivo.read(1 << 20):
                     copia.write(bloque)
             cursor.execute(
-                f'INSERT INTO {tabla} ({columnas}) SELECT {columnas} '  # noqa: S608
+                f'INSERT INTO {tabla} ({destino}) SELECT {origen} '  # noqa: S608
                 f'FROM {temporal} ON CONFLICT DO NOTHING'
             )
             cursor.execute(f'SELECT count(*) FROM {temporal}')  # noqa: S608
