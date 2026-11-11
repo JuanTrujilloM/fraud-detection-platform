@@ -82,6 +82,7 @@ class Comercio(models.Model):
         ELECTRONICA = 'ELECTRONICA', 'Electrónica'
         ROPA = 'ROPA', 'Ropa'
         FARMACIA = 'FARMACIA', 'Farmacia'
+        SALUD = 'SALUD', 'Salud'
         VIAJES = 'VIAJES', 'Viajes'
         ENTRETENIMIENTO = 'ENTRETENIMIENTO', 'Entretenimiento'
         SERVICIOS_PUBLICOS = 'SERVICIOS_PUBLICOS', 'Servicios públicos'
@@ -101,9 +102,9 @@ class Comercio(models.Model):
         default=Estado.ACTIVO,
         help_text='Acceso rápido. Para bloquear con historial usa la consola del analista.',
     )
-
     # Columna de marca de agua: la ingesta por batch extrae lo que cambió desde la última corrida.
     fecha_actualizacion = models.DateTimeField(auto_now=True, db_index=True)
+
     class Meta:
         db_table = 'comercio'
         ordering = ['nombre']
