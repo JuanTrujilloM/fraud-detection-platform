@@ -19,6 +19,8 @@ class Reclamo(models.Model):
     estado = models.CharField(max_length=11, choices=Estado.choices, default=Estado.RADICADO)
     fecha_radicacion = models.DateTimeField(auto_now_add=True)
     fecha_resolucion = models.DateTimeField(null=True, blank=True)
+    # Columna de marca de agua: la ingesta por batch extrae lo que cambió desde la última corrida.
+    fecha_actualizacion = models.DateTimeField(auto_now=True, db_index=True)
 
     class Meta:
         db_table = 'reclamo'

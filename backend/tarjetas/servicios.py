@@ -86,7 +86,7 @@ def _levantar(bloqueo: Bloqueo, usuario) -> Bloqueo:
         raise ConflictoBloqueo('El bloqueo ya fue levantado.')
 
     bloqueo.fecha_fin = timezone.now()
-    bloqueo.save(update_fields=['fecha_fin'])
+    bloqueo.save(update_fields=['fecha_fin', 'fecha_actualizacion'])
 
     if bloqueo.tipo == Bloqueo.Tipo.TARJETA:
         tarjeta = Tarjeta.objects.select_for_update().get(pk=bloqueo.tarjeta_id)

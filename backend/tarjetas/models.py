@@ -97,6 +97,8 @@ class Bloqueo(models.Model):
     )
     fecha_inicio = models.DateTimeField(auto_now_add=True)
     fecha_fin = models.DateTimeField(null=True, blank=True, help_text='Null mientras esté vigente.')
+    # Columna de marca de agua: la ingesta por batch extrae lo que cambió desde la última corrida.
+    fecha_actualizacion = models.DateTimeField(auto_now=True, db_index=True)
 
     class Meta:
         db_table = 'bloqueo'

@@ -37,6 +37,8 @@ class Alerta(models.Model):
     )
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_resolucion = models.DateTimeField(null=True, blank=True)
+    # Columna de marca de agua: la ingesta por batch extrae lo que cambió desde la última corrida.
+    fecha_actualizacion = models.DateTimeField(auto_now=True, db_index=True)
 
     class Meta:
         db_table = 'alerta'

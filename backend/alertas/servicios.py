@@ -53,7 +53,7 @@ def resolver_alerta(alerta_id: int, estado: str, analista) -> Alerta:
     alerta.estado = estado
     alerta.analista = analista
     alerta.fecha_resolucion = timezone.now()
-    alerta.save(update_fields=['estado', 'analista', 'fecha_resolucion'])
+    alerta.save(update_fields=['estado', 'analista', 'fecha_resolucion', 'fecha_actualizacion'])
     registrar_al_confirmar(
         'ALERTA_RESUELTA', MODULO, analista, {'id_alerta': alerta.id, 'estado': alerta.estado}
     )

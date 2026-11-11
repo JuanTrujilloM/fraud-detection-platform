@@ -51,5 +51,5 @@ def radicar_reclamo(asociado, usuario, autorizacion, descripcion: str) -> Reclam
 def cambiar_estado_reclamo(reclamo: Reclamo, estado: str) -> Reclamo:
     reclamo.estado = estado
     reclamo.fecha_resolucion = timezone.now() if estado == Reclamo.Estado.RESUELTO else None
-    reclamo.save(update_fields=['estado', 'fecha_resolucion'])
+    reclamo.save(update_fields=['estado', 'fecha_resolucion', 'fecha_actualizacion'])
     return reclamo
