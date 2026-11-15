@@ -22,3 +22,7 @@ backend/data/historico.zip
 # Log de eventos en local
 logs/*
 !logs/.gitkeep
+
+# Contracargos generados por la entrega simulada
+exports/*
+!exports/.gitkeep
