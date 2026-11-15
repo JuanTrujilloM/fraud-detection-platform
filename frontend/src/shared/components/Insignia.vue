@@ -15,6 +15,8 @@ const TONOS: Record<string, string> = {
   BLOQUEADA: 'mal',
   BLOQUEADO: 'mal',
   CONFIRMADA_FRAUDE: 'mal',
+  FRAUDE: 'mal',
+  NO_FRAUDE: 'ok',
   PENDIENTE: 'aviso',
   RADICADO: 'aviso',
   EN_REVISION: 'aviso',

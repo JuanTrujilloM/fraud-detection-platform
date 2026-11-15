@@ -151,5 +151,7 @@ class ReclamoDetalleView(APIView):
         reclamo = get_object_or_404(Reclamo, pk=pk)
         entrada = ActualizarReclamoSerializer(reclamo, data=request.data)
         entrada.is_valid(raise_exception=True)
-        servicios.cambiar_estado_reclamo(reclamo, entrada.validated_data['estado'])
+        servicios.cambiar_estado_reclamo(
+            reclamo, entrada.validated_data['estado'], entrada.validated_data.get('resultado')
+        )
         return Response(ReclamoSerializer(_RECLAMOS.get(pk=pk)).data)

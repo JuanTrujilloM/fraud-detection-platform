@@ -33,6 +33,7 @@ export interface Reclamo {
   ultimos_4: string;
   descripcion: string;
   estado: string;
+  resultado: string | null;
   fecha_radicacion: string;
   fecha_resolucion: string | null;
 }

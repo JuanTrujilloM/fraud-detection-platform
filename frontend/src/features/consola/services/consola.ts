@@ -86,5 +86,7 @@ export const listarReclamosTodos = (estado: string, page: number) =>
     .get<Pagina<Reclamo>>('reclamos/', { params: { page, ...(estado ? { estado } : {}) } })
     .then((r) => r.data);
 
-export const cambiarEstadoReclamo = (id: number, estado: string) =>
-  api.patch<Reclamo>(`reclamos/${id}/`, { estado }).then((r) => r.data);
+export const cambiarEstadoReclamo = (id: number, estado: string, resultado?: string) =>
+  api
+    .patch<Reclamo>(`reclamos/${id}/`, { estado, ...(resultado ? { resultado } : {}) })
+    .then((r) => r.data);

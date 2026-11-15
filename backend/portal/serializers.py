@@ -81,6 +81,7 @@ class ReclamoSerializer(serializers.ModelSerializer):
             'ultimos_4',
             'descripcion',
             'estado',
+            'resultado',
             'fecha_radicacion',
             'fecha_resolucion',
         ]
@@ -106,8 +107,25 @@ class CrearReclamoSerializer(serializers.Serializer):
 
 class ActualizarReclamoSerializer(serializers.Serializer):
     estado = serializers.ChoiceField(choices=Reclamo.Estado.choices)
+    resultado = serializers.ChoiceField(choices=Reclamo.Resultado.choices, required=False)
 
     def validate_estado(self, estado):
         if self.instance.estado == Reclamo.Estado.RESUELTO and estado != Reclamo.Estado.RESUELTO:
             raise serializers.ValidationError('Un reclamo resuelto no se puede reabrir.')
         return estado
+
+    def validate(self, datos):
+        if datos['estado'] == Reclamo.Estado.RESUELTO:
+            if 'resultado' not in datos:
+                raise serializers.ValidationError(
+                    {'resultado': 'Indica si fue fraude o no al resolver el reclamo.'}
+                )
+            if self.instance.estado == Reclamo.Estado.RESUELTO:
+                raise serializers.ValidationError(
+                    {'resultado': 'El resultado de un reclamo resuelto no se puede cambiar.'}
+                )
+        elif 'resultado' in datos:
+            raise serializers.ValidationError(
+                {'resultado': 'El resultado solo se indica al resolver el reclamo.'}
+            )
+        return datos

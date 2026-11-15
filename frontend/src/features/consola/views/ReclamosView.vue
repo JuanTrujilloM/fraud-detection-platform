@@ -16,11 +16,11 @@ const { items, pagina, totalPaginas, cargando, error, cargar } = usePaginado<Rec
 const errorAccion = ref('');
 const procesando = ref<number | null>(null);
 
-async function cambiar(reclamo: Reclamo, estado: string) {
+async function cambiar(reclamo: Reclamo, estado: string, resultado?: string) {
   errorAccion.value = '';
   procesando.value = reclamo.id;
   try {
-    Object.assign(reclamo, await cambiarEstadoReclamo(reclamo.id, estado));
+    Object.assign(reclamo, await cambiarEstadoReclamo(reclamo.id, estado, resultado));
   } catch (e) {
     errorAccion.value = mensajeDeError(e);
   } finally {
@@ -54,6 +54,7 @@ onMounted(() => cargar(1));
           <th class="numero">Monto</th>
           <th>Descripción</th>
           <th>Estado</th>
+          <th>Resultado</th>
           <th><span class="solo-lector">Acciones</span></th>
         </tr>
       </thead>
@@ -65,6 +66,7 @@ onMounted(() => cargar(1));
           <td class="numero">{{ formatoMoneda(r.monto) }}</td>
           <td class="ancho">{{ r.descripcion }}</td>
           <td><Insignia :valor="r.estado" /></td>
+          <td><Insignia v-if="r.resultado" :valor="r.resultado" /></td>
           <td>
             <div v-if="r.estado !== 'RESUELTO'" class="acciones">
               <button
@@ -80,9 +82,17 @@ onMounted(() => cargar(1));
                 type="button"
                 class="secundario"
                 :disabled="procesando === r.id"
-                @click="cambiar(r, 'RESUELTO')"
+                @click="cambiar(r, 'RESUELTO', 'FRAUDE')"
               >
-                Resolver
+                Fraude
+              </button>
+              <button
+                type="button"
+                class="secundario"
+                :disabled="procesando === r.id"
+                @click="cambiar(r, 'RESUELTO', 'NO_FRAUDE')"
+              >
+                No fraude
               </button>
             </div>
             <span v-else>{{ formatoFechaHora(r.fecha_resolucion) }}</span>

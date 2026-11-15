@@ -10,6 +10,10 @@ class Reclamo(models.Model):
         EN_REVISION = 'EN_REVISION', 'En revisión'
         RESUELTO = 'RESUELTO', 'Resuelto'
 
+    class Resultado(models.TextChoices):
+        FRAUDE = 'FRAUDE', 'Fraude'
+        NO_FRAUDE = 'NO_FRAUDE', 'No es fraude'
+
     asociado = models.ForeignKey(Asociado, on_delete=models.PROTECT, related_name='reclamos')
     # Una compra se reporta una sola vez.
     autorizacion = models.OneToOneField(
@@ -17,10 +21,12 @@ class Reclamo(models.Model):
     )
     descripcion = models.TextField()
     estado = models.CharField(max_length=11, choices=Estado.choices, default=Estado.RADICADO)
+    # Lo define el analista al resolver; null mientras el reclamo siga abierto.
+    resultado = models.CharField(  # noqa: DJ001 - null significa 'sin resolver' en la ingesta
+        max_length=9, choices=Resultado.choices, null=True, blank=True
+    )
     fecha_radicacion = models.DateTimeField(auto_now_add=True)
     fecha_resolucion = models.DateTimeField(null=True, blank=True)
-    # Columna de marca de agua: la ingesta por batch extrae lo que cambió desde la última corrida.
-    fecha_actualizacion = models.DateTimeField(auto_now=True, db_index=True)
 
     class Meta:
         db_table = 'reclamo'
