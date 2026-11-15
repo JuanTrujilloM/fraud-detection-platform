@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('portal', '0002_initial'),
+        ('portal', '0003_fecha_actualizacion'),
     ]
 
     operations = [

@@ -53,5 +53,5 @@ def cambiar_estado_reclamo(reclamo: Reclamo, estado: str, resultado: str | None 
     reclamo.estado = estado
     reclamo.resultado = resultado if resuelto else None
     reclamo.fecha_resolucion = timezone.now() if resuelto else None
-    reclamo.save(update_fields=['estado', 'resultado', 'fecha_resolucion'])
+    reclamo.save(update_fields=['estado', 'resultado', 'fecha_resolucion', 'fecha_actualizacion'])
     return reclamo
