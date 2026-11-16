@@ -1,0 +1,15 @@
+[Unit]
+Description=Producer de eventos de CoopAndina hacia Kafka
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/fraud-detection-platform/data-platform/ingestion/streaming
+Environment=KAFKA_BOOTSTRAP=172.16.3.113:19092,172.16.3.113:29092,172.16.3.113:39092
+ExecStart=/home/ubuntu/streaming-venv/bin/python producer.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
