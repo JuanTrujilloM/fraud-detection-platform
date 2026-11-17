@@ -85,6 +85,77 @@ En orden:
 
 Los contracargos del histórico (`backend/data/historico/contracargos/`) no van a RDS: se suben directo a la zona raw del data lake.
 
+## Procesamiento en streaming
+
+Flink lee el topic `eventos` y detecta pruebas de tarjetas: un comercio con compras pequeñas de varias tarjetas distintas en ventanas de 5 minutos que avanzan cada minuto. Cada detección va al topic `alertas-streaming`, y `consumer_alertas.py` la envía a `POST /api/alertas/streaming/`, que crea la alerta, bloquea el comercio y lo registra en el log de eventos. Los archivos están en `data-platform/processing/streaming/`.
+
+### Flink en `vm-flink`
+
+En `data-platform/processing/streaming/`, descarga el conector de Kafka en `lib/`:
+
+```bash
+mkdir -p lib && curl -L -o lib/flink-sql-connector-kafka-3.4.0-1.20.jar https://repo1.maven.org/maven2/org/apache/flink/flink-sql-connector-kafka/3.4.0-1.20/flink-sql-connector-kafka-3.4.0-1.20.jar
+```
+
+Levanta Flink:
+
+```bash
+docker compose up -d
+```
+
+Copia la consulta al jobmanager y ejecútala:
+
+```bash
+docker compose cp deteccion.sql jobmanager:/opt/flink/deteccion.sql
+```
+
+```bash
+docker compose exec jobmanager /opt/flink/bin/sql-client.sh -f /opt/flink/deteccion.sql
+```
+
+El job queda corriendo en la interfaz de Flink, en el puerto 8081.
+
+### Usuario de servicio
+
+El consumer entra al backend con un usuario de rol `SERVICIO`, que solo puede enviar alertas. Créalo en el admin de Django (`/admin/`): Agregar usuario, con rol **Servicio**.
+
+### `consumer-alertas.service`
+
+En la máquina donde corre el consumer, instala `requests` en el entorno virtual del streaming:
+
+```bash
+/home/ubuntu/streaming-venv/bin/pip install requests
+```
+
+Guarda las credenciales del usuario de servicio en `/home/ubuntu/consumer-alertas.env`, fuera del repositorio:
+
+```
+API_USUARIO=<usuario de servicio>
+API_PASSWORD=<su contraseña>
+```
+
+```bash
+chmod 600 /home/ubuntu/consumer-alertas.env
+```
+
+En `consumer-alertas.service`, cambia `API_URL` por la URL del backend (el DNS del ALB). Después, instala y arranca el servicio:
+
+```bash
+sudo cp data-platform/processing/streaming/consumer-alertas.service /etc/systemd/system/
+```
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now consumer-alertas
+```
+
+Revisa que esté procesando alertas:
+
+```bash
+tail -f ~/consumer_alertas.log
+```
+
+Para probarlo de punta a punta, simula un ataque con `scripts/demo_trafico.py --prueba-tarjetas`.
+
 ## Cómo está organizado
 
 ```
