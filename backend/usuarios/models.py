@@ -17,6 +17,7 @@ class Usuario(AbstractUser):
         ASOCIADO = 'ASOCIADO', 'Asociado'
         ANALISTA = 'ANALISTA', 'Analista'
         ADMIN = 'ADMIN', 'Administrador'
+        SERVICIO = 'SERVICIO', 'Servicio'
 
     rol = models.CharField(max_length=10, choices=Rol.choices, default=Rol.ASOCIADO)
 

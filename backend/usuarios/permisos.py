@@ -26,3 +26,7 @@ class EsAsociado(_TieneRol):
 
 class EsAnalista(_TieneRol):
     rol = Usuario.Rol.ANALISTA
+
+
+class EsServicio(_TieneRol):
+    rol = Usuario.Rol.SERVICIO
