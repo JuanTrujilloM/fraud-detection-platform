@@ -1,0 +1,74 @@
+{
+  "Comment": "Ingesta semanal de archivos (contracargos, listas y catalogos) hacia la zona Raw en S3",
+  "QueryLanguage": "JSONata",
+  "StartAt": "IngestContracargos",
+  "States": {
+    "IngestContracargos": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Arguments": {
+        "JobName": "glue_ingest_files_coopandina",
+        "Arguments": {
+          "--dataset": "contracargos",
+          "--run_id": "{% $states.context.Execution.Name %}",
+          "--expected_header": "id_contracargo,id_autorizacion,id_tarjeta,ultimos_4,monto,fecha_compra,fecha_contracargo,motivo"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 5,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "IngestComerciosRiesgosos"
+    },
+    "IngestComerciosRiesgosos": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Arguments": {
+        "JobName": "glue_ingest_files_coopandina",
+        "Arguments": {
+          "--dataset": "comercios_riesgosos",
+          "--run_id": "{% $states.context.Execution.Name %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 5,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "IngestCategoriasComercio"
+    },
+    "IngestCategoriasComercio": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Arguments": {
+        "JobName": "glue_ingest_files_coopandina",
+        "Arguments": {
+          "--dataset": "categorias_comercio",
+          "--run_id": "{% $states.context.Execution.Name %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 5,
+          "BackoffRate": 2
+        }
+      ],
+      "End": true
+    }
+  }
+}

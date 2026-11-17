@@ -1,0 +1,95 @@
+{
+  "Comment": "Ingesta OLTP desde PostgreSQL hacia la zona Raw en S3",
+  "QueryLanguage": "JSONata",
+  "StartAt": "IngestAsociados",
+  "States": {
+    "IngestAsociados": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Arguments": {
+        "JobName": "glue_etl_coopandina",
+        "Arguments": {
+          "--target_entity": "asociados",
+          "--run_id": "{% $states.context.Execution.Name %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 5,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "IngestComercios"
+    },
+    "IngestComercios": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Arguments": {
+        "JobName": "glue_etl_coopandina",
+        "Arguments": {
+          "--target_entity": "comercios",
+          "--run_id": "{% $states.context.Execution.Name %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 5,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "IngestTarjetas"
+    },
+    "IngestTarjetas": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Arguments": {
+        "JobName": "glue_etl_coopandina",
+        "Arguments": {
+          "--target_entity": "tarjetas",
+          "--run_id": "{% $states.context.Execution.Name %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 5,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "IngestAutorizaciones"
+    },
+    "IngestAutorizaciones": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Arguments": {
+        "JobName": "glue_etl_coopandina",
+        "Arguments": {
+          "--target_entity": "autorizaciones",
+          "--run_id": "{% $states.context.Execution.Name %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 5,
+          "BackoffRate": 2
+        }
+      ],
+      "End": true
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "Name": "coopandina-elt-daily",
+  "ScheduleExpression": "cron(0 2 * * ? *)",
+  "ScheduleExpressionTimezone": "America/Bogota",
+  "State": "ENABLED",
+  "Target": {
+    "Arn": "arn:aws:states:us-east-1:166485506538:stateMachine:coopandina_ingest_entities.asl",
+    "Input": null
+  }
+}

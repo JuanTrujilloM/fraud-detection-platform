@@ -1,0 +1,43 @@
+{
+    "Name": "glue_etl_coopandina",
+    "Role": "arn:aws:iam::166485506538:role/LabRole",
+    "Command": {
+        "Name": "glueetl",
+        "ScriptLocation": "s3://aws-glue-assets-166485506538-us-east-1/scripts/glue_etl_coopandina.py",
+        "PythonVersion": "3"
+    },
+    "GlueVersion": "6.0",
+    "WorkerType": "G.1X",
+    "NumberOfWorkers": 2,
+    "MaxCapacity": 2.0,
+    "Timeout": 60,
+    "MaxRetries": 0,
+    "ExecutionProperty": {
+        "MaxConcurrentRuns": 1
+    },
+    "Connections": {
+        "Connections": [
+            "Coopandina RDS Connection"
+        ]
+    },
+    "DefaultArguments": {
+        "--enable-glue-datacatalog": "",
+        "--initial_watermark": "1970-01-01T00:00:00Z",
+        "--job-bookmark-option": "job-bookmark-disable",
+        "--ssm_watermark_prefix": "/coopandina/batch/watermarks",
+        "--TempDir": "s3://aws-glue-assets-166485506538-us-east-1/temporary/",
+        "--source_schema": "public",
+        "--s3_target_path": "s3://datalake-fraudwatch/raw/operational/coopandina-postgresql/",
+        "--connection_name": "Coopandina RDS Connection",
+        "--enable-metrics": "",
+        "--enable-spark-ui": "true",
+        "--extra-py-files": "s3://datalake-fraudwatch/scripts/common/etl_common.zip",
+        "--spark-event-logs-path": "s3://aws-glue-assets-166485506538-us-east-1/sparkHistoryLogs/",
+        "--enable-job-insights": "true",
+        "--enable-observability-metrics": "true",
+        "--conf": "spark.eventLog.rolling.enabled=true --conf spark.sql.catalog.glue_catalog.glue.skip-name-validation=true",
+        "--enable-continuous-cloudwatch-log": "true",
+        "--source_system": "coopandina-postgresql",
+        "--job-language": "python"
+    }
+}

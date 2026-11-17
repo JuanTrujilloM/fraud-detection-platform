@@ -1,0 +1,28 @@
+{
+    "Name": "glue_ingest_files_coopandina",
+    "Role": "arn:aws:iam::166485506538:role/LabRole",
+    "Command": {
+        "Name": "pythonshell",
+        "ScriptLocation": "s3://aws-glue-assets-166485506538-us-east-1/scripts/glue_ingest_files_coopandina.py",
+        "PythonVersion": "3.9"
+    },
+    "GlueVersion": "3.0",
+    "WorkerType": null,
+    "NumberOfWorkers": null,
+    "MaxCapacity": 0.0625,
+    "Timeout": 30,
+    "MaxRetries": 0,
+    "ExecutionProperty": {
+        "MaxConcurrentRuns": 1
+    },
+    "Connections": null,
+    "DefaultArguments": {
+        "--enable-job-insights": "false",
+        "--enable-observability-metrics": "false",
+        "--enable-glue-datacatalog": "",
+        "library-set": "analytics",
+        "--job-language": "python",
+        "--TempDir": "s3://aws-glue-assets-166485506538-us-east-1/temporary/",
+        "--bucket": "datalake-fraudwatch"
+    }
+}
