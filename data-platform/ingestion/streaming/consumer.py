@@ -1,11 +1,3 @@
-"""Lee el topic de Kafka y escribe los eventos en S3 como NDJSON (el papel de Firehose en el Lab 7).
-
-Acumula mensajes en memoria y los escribe cuando hay 500 o pasaron 60 segundos, lo que ocurra
-primero. El offset se confirma solo después de que S3 aceptó el lote (entrega al menos una vez):
-si el proceso muere entre la escritura y el commit, el lote se repite y los duplicados se quitan
-después por event_id.
-"""
-
 import argparse
 import json
 import logging
@@ -17,6 +9,10 @@ import uuid
 from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+
+import boto3
+from kafka import KafkaConsumer, TopicPartition
+from kafka.structs import OffsetAndMetadata
 
 LOG = logging.getLogger('consumer')
 
@@ -74,9 +70,6 @@ def escribir_con_reintentos(s3, bucket: str, clave: str, cuerpo: bytes, dormir) 
 
 
 def confirmar(consumidor, siguientes: dict[tuple[str, int], int]) -> None:
-    from kafka import TopicPartition
-    from kafka.structs import OffsetAndMetadata
-
     consumidor.commit(
         {
             TopicPartition(topic, particion): OffsetAndMetadata(offset, '', -1)
@@ -97,8 +90,6 @@ def volcar(consumidor, s3, args, buffer: Buffer, dormir, ahora: datetime | None 
 
 
 def crear_consumidor(args):
-    from kafka import KafkaConsumer
-
     return KafkaConsumer(
         args.topic,
         bootstrap_servers=args.bootstrap.split(','),
@@ -129,8 +120,6 @@ def ejecutar(
     if consumidor is None:
         return
     if s3 is None:
-        import boto3
-
         s3 = boto3.client('s3')
     LOG.info(
         'Conectado a Kafka; grupo %s, topic %s, destino s3://%s/%s',

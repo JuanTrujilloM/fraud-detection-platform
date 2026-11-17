@@ -1,9 +1,3 @@
-"""Publica en Kafka los eventos de negocio que la plataforma escribe en eventos.log.
-
-Lee eventos.log y sus rotados (eventos.log.AAAA-MM-DD) en orden cronológico, recuerda hasta dónde
-llegó y solo avanza esa posición después de que Kafka confirma el lote (entrega al menos una vez).
-"""
-
 import argparse
 import json
 import logging
@@ -15,6 +9,8 @@ import time
 from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+
+from kafka import KafkaProducer
 
 LOG = logging.getLogger('producer')
 
@@ -153,8 +149,6 @@ def publicar_lote(productor, topic: str, lineas: list[bytes], ahora: datetime | 
 
 
 def crear_productor(bootstrap: str):
-    from kafka import KafkaProducer
-
     return KafkaProducer(
         bootstrap_servers=bootstrap.split(','),
         acks='all',

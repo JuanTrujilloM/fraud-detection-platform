@@ -1,11 +1,3 @@
-"""Lee las alertas que publica Flink en Kafka y las envía al backend.
-
-Cada mensaje del topic alertas-streaming se envía a POST /api/alertas/streaming/, que crea la
-alerta y bloquea el comercio. El offset se confirma solo después de procesar el mensaje: si el
-backend no responde o falla (5xx), se reintenta el mismo mensaje sin perderlo. Las alertas que el
-backend rechaza (400 o 404) se registran en el log y se descartan.
-"""
-
 import argparse
 import json
 import logging
@@ -17,6 +9,8 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import requests
+from kafka import KafkaConsumer, TopicPartition
+from kafka.structs import OffsetAndMetadata
 
 LOG = logging.getLogger('consumer_alertas')
 
@@ -26,12 +20,10 @@ TIEMPO_LIMITE_HTTP = 10
 
 
 class CredencialesInvalidas(Exception):
-    """El backend rechazó el usuario de servicio: reintentar no lo arregla."""
+    pass
 
 
 class Parada:
-    """Marca que se activa con SIGTERM o SIGINT para terminar después del mensaje en curso."""
-
     def __init__(self):
         self.solicitada = False
 
@@ -61,7 +53,7 @@ class ClienteApi:
             raise CredencialesInvalidas(
                 f'El backend rechazó el usuario {self.usuario} ({respuesta.status_code})'
             )
-        # Un 5xx sale como excepción de requests y se reintenta como un error de red.
+        
         respuesta.raise_for_status()
         self.token = respuesta.json()['access']
         LOG.info('Sesión iniciada en %s como %s', self.url, self.usuario)
@@ -79,7 +71,7 @@ class ClienteApi:
             self.iniciar_sesion()
         respuesta = self._publicar(alerta)
         if respuesta.status_code == 401:
-            # El token venció: se inicia sesión otra vez y se reenvía la misma alerta.
+            
             LOG.info('El token venció; se inicia sesión de nuevo')
             self.iniciar_sesion()
             respuesta = self._publicar(alerta)
@@ -87,11 +79,6 @@ class ClienteApi:
 
 
 def procesar(cliente: ClienteApi, alerta: dict, dormir, detener) -> bool:
-    """Envía la alerta hasta que el backend la procese o la descarte.
-
-    Devuelve False solo si se pidió parar antes de terminar; en ese caso el offset no se confirma
-    y el mensaje se vuelve a leer al reiniciar.
-    """
     espera = ESPERA_INICIAL
     while not detener():
         try:
@@ -107,7 +94,6 @@ def procesar(cliente: ClienteApi, alerta: dict, dormir, detener) -> bool:
                 LOG.warning('Alerta descartada (%d): %s -> %s', codigo, alerta, respuesta.text)
                 return True
             if codigo < 500:
-                # Por ejemplo 403: el usuario no tiene el rol SERVICIO. Reintentar no lo arregla.
                 raise RuntimeError(f'El backend respondió {codigo}: {respuesta.text}')
             LOG.warning('El backend respondió %d; reintento en %.0f s', codigo, espera)
         dormir(espera)
@@ -126,16 +112,11 @@ def leer_alerta(registro) -> dict | None:
 
 
 def confirmar(consumidor, registro) -> None:
-    from kafka import TopicPartition
-    from kafka.structs import OffsetAndMetadata
-
     particion = TopicPartition(registro.topic, registro.partition)
     consumidor.commit({particion: OffsetAndMetadata(registro.offset + 1, '', -1)})
 
 
 def crear_consumidor(args):
-    from kafka import KafkaConsumer
-
     return KafkaConsumer(
         args.topic,
         bootstrap_servers=args.bootstrap.split(','),
@@ -207,7 +188,7 @@ def main(argv=None) -> int:
     parser.add_argument('--api-url', default=os.environ.get('API_URL'))
     parser.add_argument('--log-file', type=Path, default=Path.home() / 'consumer_alertas.log')
     args = parser.parse_args(argv)
-    # La contraseña solo se toma del entorno, para que no quede visible en la lista de procesos.
+    
     usuario = os.environ.get('API_USUARIO')
     clave = os.environ.get('API_PASSWORD')
     if not args.bootstrap or not args.api_url or not usuario or not clave:
