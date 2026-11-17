@@ -1,3 +1,5 @@
+from datetime import UTC
+
 from rest_framework import serializers
 
 from alertas.models import Alerta
@@ -63,3 +65,13 @@ class ResolverAlertaSerializer(serializers.Serializer):
     estado = serializers.ChoiceField(
         choices=[Alerta.Estado.CONFIRMADA_FRAUDE, Alerta.Estado.DESCARTADA]
     )
+
+
+class AlertaStreamingSerializer(serializers.Serializer):
+    """Mensaje del topic alertas-streaming. Flink envía las fechas en UTC sin zona horaria."""
+
+    id_comercio = serializers.IntegerField()
+    window_start = serializers.DateTimeField(default_timezone=UTC)
+    window_end = serializers.DateTimeField(default_timezone=UTC)
+    tarjetas = serializers.IntegerField(min_value=1)
+    monto_promedio = serializers.FloatField(min_value=0)
