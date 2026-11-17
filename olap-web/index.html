@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CoopAndina OLAP</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: system-ui, sans-serif;
+        background: #f5f6f8;
+        color: #1f2933;
+      }
+      h1 {
+        margin-top: 0;
+      }
+      .filtros,
+      .indicadores,
+      .graficos {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .graficos {
+        grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      }
+      label {
+        display: block;
+        font-size: 0.875rem;
+        margin-bottom: 4px;
+      }
+      select {
+        width: 100%;
+        padding: 6px;
+      }
+      .tarjeta {
+        background: #fff;
+        border-radius: 8px;
+        padding: 16px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      .tarjeta span {
+        display: block;
+        font-size: 0.875rem;
+        color: #52606d;
+      }
+      .tarjeta strong {
+        font-size: 1.5rem;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      th,
+      td {
+        padding: 8px;
+        border-bottom: 1px solid #e4e7eb;
+        text-align: right;
+      }
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>CoopAndina · Fraude en tarjetas</h1>
+
+    <div class="filtros">
+      <div>
+        <label for="filtro-mes">Año-mes</label>
+        <select id="filtro-mes"><option value="">Todos</option></select>
+      </div>
+      <div>
+        <label for="filtro-categoria">Categoría</label>
+        <select id="filtro-categoria"><option value="">Todas</option></select>
+      </div>
+      <div>
+        <label for="filtro-ciudad">Ciudad</label>
+        <select id="filtro-ciudad"><option value="">Todas</option></select>
+      </div>
+      <div>
+        <label for="filtro-canal">Canal</label>
+        <select id="filtro-canal"><option value="">Todos</option></select>
+      </div>
+    </div>
+
+    <div class="indicadores">
+      <div class="tarjeta"><span>Autorizaciones</span><strong id="ind-autorizaciones"></strong></div>
+      <div class="tarjeta"><span>Tasa de aprobación</span><strong id="ind-aprobacion"></strong></div>
+      <div class="tarjeta"><span>Fraudes</span><strong id="ind-fraudes"></strong></div>
+      <div class="tarjeta"><span>Tasa de fraude</span><strong id="ind-tasa-fraude"></strong></div>
+      <div class="tarjeta"><span>Monto defraudado</span><strong id="ind-monto-fraude"></strong></div>
+    </div>
+
+    <div class="graficos">
+      <div class="tarjeta"><canvas id="grafico-categoria"></canvas></div>
+      <div class="tarjeta"><canvas id="grafico-ciudad"></canvas></div>
+      <div class="tarjeta"><canvas id="grafico-mes"></canvas></div>
+      <div class="tarjeta"><canvas id="grafico-hora"></canvas></div>
+      <div class="tarjeta"><canvas id="grafico-canal"></canvas></div>
+    </div>
+
+    <h2>Alertas</h2>
+    <div class="indicadores">
+      <div class="tarjeta"><span>Confirmadas como fraude (sobre resueltas)</span><strong id="ind-confirmadas"></strong></div>
+      <div class="tarjeta"><span>Pendientes</span><strong id="ind-pendientes"></strong></div>
+      <div class="tarjeta"><span>Tiempo promedio de resolución</span><strong id="ind-promedio"></strong></div>
+    </div>
+    <div class="tarjeta">
+      <table>
+        <thead>
+          <tr>
+            <th>Tipo</th>
+            <th>Pendiente</th>
+            <th>Confirmada fraude</th>
+            <th>Descartada</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-alertas"></tbody>
+      </table>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

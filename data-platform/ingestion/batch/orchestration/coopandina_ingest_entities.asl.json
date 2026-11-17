@@ -293,6 +293,46 @@
         "QueryString": "{% $replace(\"CREATE TABLE coopandina_analytics.hecho_alerta WITH ( format = 'PARQUET', external_location = 's3://datalake-fraudwatch/analytics/hecho_alerta/<run_id>/' ) AS SELECT c.id_alerta, c.tipo, c.id_comercio, c.id_tarjeta, c.fecha, year(c.fecha) AS anio, month(c.fecha) AS mes, hour(c.fecha) AS hora, COALESCE(r.estado, 'PENDIENTE') AS estado, date_diff('minute', c.event_time, r.event_time) AS minutos_resolucion FROM ( SELECT id_alerta, tipo, id_comercio, id_tarjeta, event_time, CAST(event_time AT TIME ZONE 'America/Bogota' AS timestamp) AS fecha FROM coopandina_curated.eventos WHERE event_type = 'ALERTA_CREADA' ) c LEFT JOIN ( SELECT id_alerta, estado, event_time FROM coopandina_curated.eventos WHERE event_type = 'ALERTA_RESUELTA' ) r ON r.id_alerta = c.id_alerta\", '<run_id>', $states.context.Execution.Name) %}",
         "WorkGroup": "primary"
       },
+      "Next": "QueryCuboAutorizaciones"
+    },
+    "QueryCuboAutorizaciones": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::athena:startQueryExecution.sync",
+      "Arguments": {
+        "QueryString": "SELECT h.anio, h.mes, h.hora, c.categoria, c.ciudad, h.canal, t.franquicia, COUNT(*) AS autorizaciones, SUM(CASE WHEN h.resultado = 'APROBADA' THEN 1 ELSE 0 END) AS aprobadas, SUM(h.es_fraude) AS fraudes, SUM(h.monto) AS monto, SUM(CASE WHEN h.es_fraude = 1 THEN h.monto ELSE 0 END) AS monto_fraude FROM coopandina_analytics.hecho_autorizacion h JOIN coopandina_analytics.dim_comercio c ON c.id_comercio = h.id_comercio JOIN coopandina_analytics.dim_tarjeta t ON t.id_tarjeta = h.id_tarjeta GROUP BY h.anio, h.mes, h.hora, c.categoria, c.ciudad, h.canal, t.franquicia",
+        "WorkGroup": "primary"
+      },
+      "Output": "{% $states.result.QueryExecution.ResultConfiguration.OutputLocation %}",
+      "Next": "PublishCuboAutorizaciones"
+    },
+    "PublishCuboAutorizaciones": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:s3:copyObject",
+      "Arguments": {
+        "Bucket": "coopandina-olap-web",
+        "Key": "data/cubo_autorizaciones.csv",
+        "CopySource": "{% $substringAfter($states.input, 's3://') %}"
+      },
+      "Next": "QueryCuboAlertas"
+    },
+    "QueryCuboAlertas": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::athena:startQueryExecution.sync",
+      "Arguments": {
+        "QueryString": "SELECT h.anio, h.mes, h.tipo, h.estado, c.categoria, COUNT(*) AS alertas, COALESCE(SUM(h.minutos_resolucion), 0) AS minutos_resolucion FROM coopandina_analytics.hecho_alerta h JOIN coopandina_analytics.dim_comercio c ON c.id_comercio = h.id_comercio GROUP BY h.anio, h.mes, h.tipo, h.estado, c.categoria",
+        "WorkGroup": "primary"
+      },
+      "Output": "{% $states.result.QueryExecution.ResultConfiguration.OutputLocation %}",
+      "Next": "PublishCuboAlertas"
+    },
+    "PublishCuboAlertas": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:s3:copyObject",
+      "Arguments": {
+        "Bucket": "coopandina-olap-web",
+        "Key": "data/cubo_alertas.csv",
+        "CopySource": "{% $substringAfter($states.input, 's3://') %}"
+      },
       "End": true
     }
   }
