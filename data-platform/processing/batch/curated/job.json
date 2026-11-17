@@ -1,0 +1,34 @@
+{
+    "Name": "glue_curated_coopandina",
+    "Role": "arn:aws:iam::166485506538:role/LabRole",
+    "Command": {
+        "Name": "glueetl",
+        "ScriptLocation": "s3://aws-glue-assets-166485506538-us-east-1/scripts/glue_curated_coopandina.py",
+        "PythonVersion": "3"
+    },
+    "GlueVersion": "6.0",
+    "WorkerType": "G.1X",
+    "NumberOfWorkers": 2,
+    "Timeout": 60,
+    "MaxRetries": 0,
+    "ExecutionProperty": {
+        "MaxConcurrentRuns": 1
+    },
+    "DefaultArguments": {
+        "--enable-glue-datacatalog": "",
+        "--job-bookmark-option": "job-bookmark-disable",
+        "--TempDir": "s3://aws-glue-assets-166485506538-us-east-1/temporary/",
+        "--raw_path": "s3://datalake-fraudwatch/raw/",
+        "--curated_path": "s3://datalake-fraudwatch/curated/",
+        "--curated_database": "coopandina_curated",
+        "--enable-metrics": "",
+        "--enable-spark-ui": "true",
+        "--extra-py-files": "s3://datalake-fraudwatch/scripts/common/etl_common.zip",
+        "--spark-event-logs-path": "s3://aws-glue-assets-166485506538-us-east-1/sparkHistoryLogs/",
+        "--enable-job-insights": "true",
+        "--enable-observability-metrics": "true",
+        "--conf": "spark.eventLog.rolling.enabled=true",
+        "--enable-continuous-cloudwatch-log": "true",
+        "--job-language": "python"
+    }
+}

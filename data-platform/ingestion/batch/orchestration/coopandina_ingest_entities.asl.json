@@ -89,6 +89,138 @@
           "BackoffRate": 2
         }
       ],
+      "Next": "CuratedAsociados"
+    },
+    "CuratedAsociados": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Arguments": {
+        "JobName": "glue_curated_coopandina",
+        "Arguments": {
+          "--source": "asociados",
+          "--run_id": "{% $states.context.Execution.Name %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 5,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "CuratedComercios"
+    },
+    "CuratedComercios": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Arguments": {
+        "JobName": "glue_curated_coopandina",
+        "Arguments": {
+          "--source": "comercios",
+          "--run_id": "{% $states.context.Execution.Name %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 5,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "CuratedTarjetas"
+    },
+    "CuratedTarjetas": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Arguments": {
+        "JobName": "glue_curated_coopandina",
+        "Arguments": {
+          "--source": "tarjetas",
+          "--run_id": "{% $states.context.Execution.Name %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 5,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "CuratedAutorizaciones"
+    },
+    "CuratedAutorizaciones": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Arguments": {
+        "JobName": "glue_curated_coopandina",
+        "Arguments": {
+          "--source": "autorizaciones",
+          "--run_id": "{% $states.context.Execution.Name %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 5,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "CuratedEventos"
+    },
+    "CuratedEventos": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Arguments": {
+        "JobName": "glue_curated_coopandina",
+        "Arguments": {
+          "--source": "eventos",
+          "--run_id": "{% $states.context.Execution.Name %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 5,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "CuratedContracargos"
+    },
+    "CuratedContracargos": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::glue:startJobRun.sync",
+      "Arguments": {
+        "JobName": "glue_curated_coopandina",
+        "Arguments": {
+          "--source": "contracargos",
+          "--run_id": "{% $states.context.Execution.Name %}"
+        }
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Glue.ConcurrentRunsExceededException"
+          ],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 5,
+          "BackoffRate": 2
+        }
+      ],
       "End": true
     }
   }
