@@ -1,0 +1,18 @@
+[Unit]
+Description=Consumer de alertas de CoopAndina: Kafka al backend
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/fraud-detection-platform/data-platform/processing/streaming
+Environment=KAFKA_BOOTSTRAP=172.16.3.113:19092,172.16.3.113:29092,172.16.3.113:39092
+Environment=API_URL=http://<dns-del-alb>
+# API_USUARIO y API_PASSWORD del usuario de servicio; el archivo no se versiona.
+EnvironmentFile=/home/ubuntu/consumer-alertas.env
+ExecStart=/home/ubuntu/streaming-venv/bin/python consumer_alertas.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
