@@ -27,7 +27,15 @@ Una autorización cuenta como fraude cuando tiene un contracargo con motivo `FRA
 
 ## Arquitectura en la nube
 
-![Arquitectura de la plataforma](docs/arquitectura.png)
+### Flujo de datos
+
+![Flujo de datos de la plataforma](docs/arquitectura.png)
+
+### Red en AWS
+
+Todo corre en una VPC con una subred pública y una privada en cada zona de disponibilidad. Las EC2 de la app, Kafka y Flink, la RDS y la conexión de Glue están en la subred privada 1, sin acceso directo desde internet: se entra solo por el Application Load Balancer, y las máquinas privadas salen a internet por el NAT Gateway. S3, Glue, Athena, Step Functions, EventBridge y SSM son servicios administrados, fuera de la VPC.
+
+![Arquitectura de red en AWS](docs/arquitectura-nube.png)
 
 ## Cómo fluyen los datos
 
