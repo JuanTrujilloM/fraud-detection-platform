@@ -1,202 +1,217 @@
-# Plataforma OLTP de CoopAndina
+# Plataforma de detección de fraude de CoopAndina
 
-Autoriza las compras con tarjeta de crédito de la cooperativa y registra cada operación de negocio en un log de eventos que alimenta la ingesta por streaming. Es la fuente de datos de la plataforma de detección de fraude del proyecto SI3008.
+Proyecto final de SI3008 Sistemas Intensivos en Datos. CoopAndina es una cooperativa ficticia que autoriza compras con tarjeta de crédito. La plataforma recibe esas compras en un sistema transaccional (OLTP), detecta en tiempo real ataques de prueba de tarjetas y lleva todos los datos a un data lake en AWS. Desde ahí, una página OLAP muestra cómo se comporta el fraude por categoría, ciudad, canal y tiempo.
 
-| Capa | Tecnología |
+## Qué hace la plataforma
+
+| Funcionalidad | Cómo |
 | --- | --- |
-| Backend | Django + Django REST Framework, servido con Gunicorn |
-| Autenticación | JWT con `djangorestframework-simplejwt`, un rol por usuario |
-| Base de datos | PostgreSQL |
-| Frontend | Vue 3 + Vite + TypeScript, con rutas por rol |
+| Registrar las operaciones | La app OLTP guarda las compras en PostgreSQL y escribe cada operación de negocio en un log de eventos |
+| Ingesta por streaming | Los eventos del log viajan por Kafka hasta la zona raw del data lake, a medida que ocurren |
+| Procesamiento en streaming | Flink detecta pruebas de tarjetas sobre el flujo de eventos; el backend crea la alerta y bloquea el comercio |
+| Ingesta batch de la base de datos | Glue extrae cada día lo nuevo de las tablas del OLTP hacia raw, de forma incremental |
+| Ingesta batch de archivos | Glue toma cada semana los archivos de contracargos que entrega la red de pagos |
+| Limpieza y unificación | Glue pasa cada fuente de raw a curated: una versión por registro, sin duplicados y con tipos correctos |
+| Modelo analítico | Athena construye un modelo estrella en la zona analytics |
+| OLAP | Athena calcula dos cubos y una página estática en S3 los muestra con filtros y gráficos |
 
-## Cómo levantarla
+## Fuentes de datos
+
+| Fuente | Qué contiene | Llega por |
+| --- | --- | --- |
+| Base de datos del OLTP (RDS) | `asociados`, `comercios`, `tarjetas`, `autorizaciones` | Batch diario |
+| Log de eventos de negocio | Una línea JSON por operación: autorizaciones, alertas, bloqueos, reclamos, inicios de sesión | Streaming |
+| Archivos de contracargos | CSV semanal de la red de pagos, con el motivo de cada contracargo | Batch semanal |
+
+Una autorización cuenta como fraude cuando tiene un contracargo con motivo `FRAUDE`.
+
+## Arquitectura en la nube
+
+![Arquitectura de la plataforma](docs/arquitectura.png)
+
+## Cómo fluyen los datos
+
+### Zonas del data lake
+
+Todo vive en el bucket `datalake-fraudwatch`:
+
+| Zona | Contenido | Formato |
+| --- | --- | --- |
+| `landing/` | Archivos tal como los entrega la red de pagos, antes de validarlos | CSV |
+| `raw/` | Copia fiel de cada fuente, con columnas de control (`_ingested_at`, `_run_id`, etc.) | Parquet, NDJSON y CSV |
+| `curated/` | Datos limpios: una versión por registro, sin duplicados y tipados | Parquet |
+| `analytics/` | Modelo estrella listo para consultar | Parquet |
+
+Las zonas `curated` y `analytics` están registradas en el Glue Data Catalog, en las bases `coopandina_curated` y `coopandina_analytics`, para consultarlas con Athena.
+
+### 1. Ingesta por streaming: log de eventos → raw
+
+1. Django escribe cada operación en el log de eventos, solo después de confirmar la transacción.
+2. `producer.py` lee el log y publica cada línea en el topic `eventos` de Kafka.
+3. `consumer.py` lee el topic y escribe los eventos en `raw/eventos/AAAA/MM/DD/HH/` como NDJSON.
+
+Los dos corren como servicios systemd.
+
+### 2. Procesamiento en streaming: detección de pruebas de tarjetas
+
+1. Flink lee el topic `eventos` con `deteccion.sql`.
+2. Agrupa las autorizaciones por comercio en ventanas de 5 minutos que avanzan cada minuto. Si en una ventana hay 3 o más tarjetas distintas con un monto promedio menor a 20.000, publica una alerta en el topic `alertas-streaming`.
+3. `consumer_alertas.py` lee ese topic y llama a `POST /api/alertas/streaming/` con un usuario de rol `SERVICIO`.
+4. El backend crea la alerta, bloquea el comercio en RDS y registra `ALERTA_CREADA` y `BLOQUEO_APLICADO` en el log. Esos eventos vuelven a entrar al flujo de streaming.
+
+### 3. Ingesta batch de la base de datos: RDS → raw
+
+Cada día, el job de Glue `glue_etl_coopandina` extrae cada tabla del OLTP por JDBC. La extracción es incremental: solo trae las filas con la marca de agua (`fecha_actualizacion`, o `fecha_hora` en autorizaciones) posterior a la última guardada en SSM Parameter Store. Escribe en `raw/operational/coopandina-postgresql/<tabla>/_ingestion_date=AAAA-MM-DD/_run_id=<id>/`.
+
+### 4. Ingesta batch de archivos: landing → raw
+
+La red de pagos deja cada semana un CSV de contracargos en `landing/contracargos/`. El job de Glue `glue_ingest_files_coopandina` valida la cabecera de cada archivo, lo copia a `raw/files/contracargos/` junto con un `_manifest.json` y mueve el original a `landing/_processed/`.
+
+### 5. Raw → curated
+
+El job de Glue `glue_curated_coopandina` se ejecuta una vez por fuente, lee toda la fuente en raw y reescribe su tabla en curated:
+
+| Fuente | Qué hace |
+| --- | --- |
+| Tablas del OLTP | Deja la versión más reciente de cada registro y quita las columnas de control |
+| Eventos | Descarta los registros inválidos, quita duplicados por `event_id` y particiona por fecha |
+| Contracargos | Tipa las columnas y quita duplicados por `id_contracargo` |
+
+### 6. Curated → analytics: modelo estrella
+
+Athena construye cuatro tablas con `CREATE TABLE AS SELECT`, con las fechas en hora de Colombia:
+
+| Tabla | Tipo | Contenido |
+| --- | --- | --- |
+| `hecho_autorizacion` | Hecho | Una fila por compra, con monto, canal, resultado y `es_fraude` (1 si tiene contracargo por fraude) |
+| `hecho_alerta` | Hecho | Una fila por alerta, con su estado y los minutos que tardó en resolverse |
+| `dim_tarjeta` | Dimensión | Franquicia y estado de la tarjeta, con la ciudad, edad e ingreso del asociado |
+| `dim_comercio` | Dimensión | Nombre, categoría, ciudad y si vende en línea |
+
+Cada corrida escribe en una carpeta nueva (`analytics/<tabla>/<run_id>/`) y reemplaza la tabla.
+
+### 7. Analytics → OLAP
+
+1. Athena ejecuta dos consultas cubo: `cubo_autorizaciones` (por año, mes, hora, categoría, ciudad, canal y franquicia) y `cubo_alertas` (por año, mes, tipo, estado y categoría).
+2. Cada resultado se copia como CSV a `s3://coopandina-olap-web/data/`.
+3. La página estática del mismo bucket descarga los CSV, los vuelve a agregar en el navegador según los filtros y dibuja los indicadores y gráficos con Chart.js.
+
+### Orquestación
+
+| Programación (EventBridge Scheduler) | Máquina de Step Functions | Pasos |
+| --- | --- | --- |
+| `coopandina-elt-daily`, todos los días a las 2:00 | `coopandina_ingest_entities` | Ingesta de las 4 tablas → curated de las 6 fuentes → las 4 tablas de analytics → los 2 cubos de la página |
+| `coopandina-files-weekly`, los lunes a las 4:00 | `coopandina_ingest_files` | Ingesta de los archivos de landing a raw |
+
+## Servicios utilizados
+
+| Servicio | Para qué |
+| --- | --- |
+| Amazon EC2 | App OLTP, brokers de Kafka y Flink |
+| Application Load Balancer | Entrada pública a la app y a la API |
+| Amazon RDS for PostgreSQL | Base de datos del OLTP |
+| Apache Kafka (en EC2) | Transporte de eventos y de alertas |
+| Apache Flink (en EC2) | Procesamiento en streaming con Flink SQL |
+| Amazon S3 | Data lake por zonas y hosting de la página OLAP |
+| AWS Glue | Jobs de ingesta y de curated, con Spark y Python shell |
+| AWS Glue Data Catalog | Metadatos de las tablas de curated y analytics |
+| Amazon Athena | Modelo estrella y cubos con SQL |
+| AWS Step Functions | Orquestación del batch |
+| Amazon EventBridge Scheduler | Programación diaria y semanal |
+| AWS Systems Manager Parameter Store | Marcas de agua de la extracción incremental |
+
+## Cómo está organizado
+
+```
+backend/                      App OLTP: Django REST y el log de eventos
+frontend/                     App OLTP: Vue 3
+data-platform/
+  ingestion/
+    streaming/                Kafka, producer.py y consumer.py
+    batch/
+      operational/            Ingesta de RDS a raw
+      files/                  Ingesta de archivos de landing a raw
+      common/                 Código compartido por los jobs de ingesta
+      orchestration/          Máquinas de Step Functions y programaciones
+  processing/
+    streaming/                Flink (deteccion.sql) y consumer_alertas.py
+    batch/
+      curated/                Job de raw a curated
+      analytics/              Consultas del modelo estrella y de los cubos
+olap-web/                     Página OLAP estática
+scripts/                      Tráfico de demo y entrega de contracargos
+```
+
+## Cómo levantar cada parte
+
+### App OLTP en local
 
 Necesitas Docker.
 
 ```bash
 cp .env.example .env
-```
-
-```bash
 docker compose up --build
 ```
 
-Los datos son el histórico de CoopAndina, construido a partir de un dataset de Kaggle. No está en el repositorio: pide al equipo el archivo `historico.zip` y descomprímelo en `backend/data/historico/`. Después, en otra terminal, cárgalo (usa la `CARGA_PASSWORD` de tu `.env` como contraseña de todos los usuarios):
+Los datos son el histórico de CoopAndina, construido a partir de un dataset de Kaggle. No está en el repositorio: pide al equipo el archivo `historico.zip`, descomprímelo en `backend/data/historico/` y cárgalo (usa la `CARGA_PASSWORD` de tu `.env` como contraseña de todos los usuarios):
 
 ```bash
 docker compose exec backend python manage.py cargar_datos --dir data/historico
 ```
 
-Entra a <http://localhost:5173>:
+Entra a <http://localhost:5173> con `comercio_<nit>`, `asociado_<documento>`, `analista_demo` o `admin_demo`.
 
-| Rol | Usuario | Módulo |
-| --- | --- | --- |
-| Comercio con tienda en línea | `comercio_800026831` (Tecnología 26831) | Terminal de pago |
-| Comercio solo presencial | `comercio_800000037` (Supermercado 37) | Terminal de pago |
-| Asociado | `asociado_7000000825` | Portal |
-| Analista | `analista_demo` | Consola de fraude |
-| Administrador | `admin_demo` | [Admin de Django](http://localhost:5173/admin/) |
+### Despliegue de la app en AWS
 
-Cualquier comercio o asociado del histórico sirve: los usuarios son `comercio_<nit>` y `asociado_<documento>`. Las tarjetas, con su CVV en claro porque son sintéticas, quedan en `backend/data/historico/tarjetas.csv`. Muchas ya están vencidas, como en el dataset original.
-
-Para generar tráfico:
+En la EC2, con `docker-compose.prod.yml`: Nginx sirve el build de Vue en el puerto 80 y reenvía `/api/`, `/admin/` y `/static/` a Gunicorn. El health check del ALB es `/healthz`. En el `.env` de la EC2 van `DJANGO_DEBUG=false`, `DJANGO_ALLOWED_HOSTS` con el DNS del ALB, `NUM_PROXIES=2` y `POSTGRES_HOST` con el endpoint de RDS.
 
 ```bash
-python3 scripts/demo_trafico.py --password <CARGA_PASSWORD> --compras 200
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml exec backend python manage.py cargar_datos --dir data/historico
 ```
 
-El script también tiene `--prueba-tarjetas`, que simula el ataque que debe detectar el procesamiento en streaming.
+Carga el histórico antes de la primera ingesta batch: la de autorizaciones usa `fecha_hora` como marca de agua y, si corre antes, nunca tomará esas compras. Los contracargos del histórico (`backend/data/historico/contracargos/`) no van a RDS: se suben a `landing/contracargos/`.
 
-El modelo de ML todavía devuelve un valor fijo bajo, así que no aparecerán alertas. Para verlas, sube `MODELO_PROBABILIDAD_FIJA` en `.env` (por ejemplo a `0.7` para aprobar con alerta o a `0.9` para rechazar) y recrea el contenedor:
+### Ingesta por streaming
 
-```bash
-docker compose up -d --force-recreate backend
-```
+En `data-platform/ingestion/streaming/`, levanta Kafka con `docker compose up -d` e instala `producer-eventos.service` y `consumer-eventos.service` en systemd.
 
-## Despliegue en AWS
+### Procesamiento en streaming
 
-En la EC2, con `docker-compose.prod.yml`: Nginx sirve el build de Vue en el puerto 80 y reenvía `/api/`, `/admin/` y `/static/` a Gunicorn. El health check del ALB es `/healthz`.
-
-En el `.env` de la EC2, además de los secretos propios y los datos de RDS:
-
-| Variable | Valor |
-| --- | --- |
-| `DJANGO_DEBUG` | `false` |
-| `DJANGO_ALLOWED_HOSTS` | El DNS del ALB |
-| `NUM_PROXIES` | `2`, por el ALB y Nginx |
-| `POSTGRES_HOST` | El endpoint de RDS |
-
-En orden:
-
-1. Descomprime `historico.zip` en `backend/data/historico/`.
-2. Levanta la aplicación, que aplica las migraciones al arrancar:
-
-   ```bash
-   docker compose -f docker-compose.prod.yml up -d --build
-   ```
-
-3. Carga el histórico en RDS, con la base vacía:
-
-   ```bash
-   docker compose -f docker-compose.prod.yml exec backend python manage.py cargar_datos --dir data/historico
-   ```
-
-4. Solo después, corre la primera ingesta por batch. La de autorizaciones usa `fecha_hora` como marca de agua: si corre antes de cargar el histórico, nunca tomará esas compras.
-
-Los contracargos del histórico (`backend/data/historico/contracargos/`) no van a RDS: se suben directo a la zona raw del data lake.
-
-## Procesamiento en streaming
-
-Flink lee el topic `eventos` y detecta pruebas de tarjetas: un comercio con compras pequeñas de varias tarjetas distintas en ventanas de 5 minutos que avanzan cada minuto. Cada detección va al topic `alertas-streaming`, y `consumer_alertas.py` la envía a `POST /api/alertas/streaming/`, que crea la alerta, bloquea el comercio y lo registra en el log de eventos. Los archivos están en `data-platform/processing/streaming/`.
-
-### Flink en `vm-flink`
-
-En `data-platform/processing/streaming/`, descarga el conector de Kafka en `lib/`:
+En `data-platform/processing/streaming/`, descarga el conector de Kafka y levanta Flink:
 
 ```bash
 mkdir -p lib && curl -L -o lib/flink-sql-connector-kafka-3.4.0-1.20.jar https://repo1.maven.org/maven2/org/apache/flink/flink-sql-connector-kafka/3.4.0-1.20/flink-sql-connector-kafka-3.4.0-1.20.jar
-```
-
-Levanta Flink:
-
-```bash
 docker compose up -d
-```
-
-Copia la consulta al jobmanager y ejecútala:
-
-```bash
 docker compose cp deteccion.sql jobmanager:/opt/flink/deteccion.sql
-```
-
-```bash
 docker compose exec jobmanager /opt/flink/bin/sql-client.sh -f /opt/flink/deteccion.sql
 ```
 
-El job queda corriendo en la interfaz de Flink, en el puerto 8081.
+El job queda en la interfaz de Flink, en el puerto 8081. Si la máquina se reinicia, hay que volver a lanzarlo.
 
-### Usuario de servicio
-
-El consumer entra al backend con un usuario de rol `SERVICIO`, que solo puede enviar alertas. Créalo en el admin de Django (`/admin/`): Agregar usuario, con rol **Servicio**.
-
-### `consumer-alertas.service`
-
-En la máquina donde corre el consumer, instala `requests` en el entorno virtual del streaming:
-
-```bash
-/home/ubuntu/streaming-venv/bin/pip install requests
-```
-
-Guarda las credenciales del usuario de servicio en `/home/ubuntu/consumer-alertas.env`, fuera del repositorio:
-
-```
-API_USUARIO=<usuario de servicio>
-API_PASSWORD=<su contraseña>
-```
-
-```bash
-chmod 600 /home/ubuntu/consumer-alertas.env
-```
-
-En `consumer-alertas.service`, cambia `API_URL` por la URL del backend (el DNS del ALB). Después, instala y arranca el servicio:
+Para `consumer_alertas.py`, crea en el admin de Django un usuario con rol **Servicio**, guarda sus credenciales en `/home/ubuntu/consumer-alertas.env` (`API_USUARIO` y `API_PASSWORD`, con `chmod 600`), cambia `API_URL` en `consumer-alertas.service` por el DNS del ALB e instálalo:
 
 ```bash
 sudo cp data-platform/processing/streaming/consumer-alertas.service /etc/systemd/system/
-```
-
-```bash
 sudo systemctl daemon-reload && sudo systemctl enable --now consumer-alertas
 ```
 
-Revisa que esté procesando alertas:
+Para probarlo de punta a punta, simula un ataque con `python3 scripts/demo_trafico.py --password <CARGA_PASSWORD> --prueba-tarjetas`.
+
+### Batch
+
+Los jobs de Glue se crean a partir de los `job.json` de cada carpeta, con los scripts en S3. Las máquinas de Step Functions están en `data-platform/ingestion/batch/orchestration/`, junto con sus programaciones. La máquina diaria necesita la RDS encendida.
+
+Para simular la entrega semanal de contracargos generados desde la app:
 
 ```bash
-tail -f ~/consumer_alertas.log
+bash scripts/entregar_contracargos.sh
 ```
 
-Para probarlo de punta a punta, simula un ataque con `scripts/demo_trafico.py --prueba-tarjetas`.
+### Página OLAP
 
-## Cómo está organizado
-
-```
-backend/
-  config/          Settings y URLs
-  usuarios/        Usuario, Asociado, Comercio, login y permisos por rol; comando cargar_datos
-  tarjetas/        Tarjeta, Bloqueo y hash del CVV
-  autorizaciones/  Autorizacion, el autorizador (servicios.py) y el acceso al modelo (modelo.py)
-  alertas/         Alerta
-  portal/          Reclamo y los endpoints del asociado
-  eventos/         El log de negocio
-frontend/src/
-  app/             Arranque, router y guardias por rol
-  features/        auth, comercio, portal y consola: vistas, servicios y rutas de cada módulo
-  shared/          Componentes, cliente HTTP y utilidades
-scripts/           Tráfico de demo
-docs/              Formato de carga de datos
-```
-
-En cada app, las vistas solo traducen HTTP: las reglas de negocio están en `servicios.py`.
+Crea el bucket `coopandina-olap-web` con hosting estático y lectura pública, y sube `olap-web/index.html` y `olap-web/app.js`. La máquina diaria publica los cubos en `data/`.
 
 ## Log de eventos
 
-Cada operación escribe una línea JSON en `/var/log/coopandina/eventos.log`, solo después de confirmar la transacción. En local queda en `logs/eventos.log`. Rota a diario y conserva 30 días.
-
-```bash
-tail -f logs/eventos.log
-```
-
-Nunca se registran el número completo de la tarjeta, el CVV, las contraseñas ni los valores de los datos personales que cambian.
-
-## Decisiones que complementan la especificación
-
-- **CVV con HMAC-SHA256 y llave del servidor**, no con el hash de contraseñas de Django: se calcula con la fila de la tarjeta bloqueada, así que no puede tardar cientos de milisegundos. Lo protege la llave `CVV_HMAC_KEY`, que no está en la base de datos.
-- **Gunicorn con un worker y varios hilos**: `TimedRotatingFileHandler` no es seguro entre procesos, y varios workers podrían perder eventos al rotar.
-- **La tarjeta se busca antes de la validación 1** aunque se valide en el paso 3: si existe, un rechazo por comercio bloqueado también debe guardarse.
-- **Un rechazo responde HTTP 200**: es una decisión de negocio. Un 400 significa que la petición está mal formada, y esas no generan evento.
-- **`fecha_vencimiento` se envía como `MM/AA`**, como aparece en la tarjeta.
-- **Un solo bloqueo vigente por tarjeta o comercio**, con restricción en la base de datos. Bloquear algo ya bloqueado responde 409.
-- **Una compra admite un solo reclamo.**
-- **Endpoints agregados** porque las pantallas los necesitan: `GET /api/asociado/perfil/` y `GET /api/bloqueos/`.
-- **`INICIO_SESION` fallido** registra `USUARIO_INEXISTENTE`, `USUARIO_INACTIVO` o `CONTRASENA_INVALIDA`. El cliente siempre recibe el mismo error.
-
-Lo que queda fuera de alcance está en la especificación: pagos, PIN, 3-D Secure, notificaciones y detección de patrones en conjunto, entre otros.
+Cada operación escribe una línea JSON en `/var/log/coopandina/eventos.log`, solo después de confirmar la transacción. En local queda en `logs/eventos.log`. Rota a diario y conserva 30 días. Nunca se registran el número completo de la tarjeta, el CVV, las contraseñas ni los valores de los datos personales que cambian.
